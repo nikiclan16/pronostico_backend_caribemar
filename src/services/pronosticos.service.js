@@ -612,12 +612,12 @@ export default class PronosticosService {
           await sesionModel.ingresarTipoPronostico(
             mc,
             fechaEvaluarIso,
-            "Modelo RN"
+            "Modelo IA"
           );
         } else {
           // Existe -> actualizar (tu model espera ordenar parámetros: tipopronostico, ucp, fecha)
           await sesionModel.actualizarTipoPronostico(
-            "Modelo RN",
+            "Modelo IA",
             mc,
             fechaEvaluarIso
           );
@@ -647,7 +647,7 @@ export default class PronosticosService {
   };
 
   /**
-   * Llama a la API externa de predicción (http://localhost:8000/predict) o (http://localhost:8001/predict) si es produccion
+   * Llama a la API externa de predicción (http://localhost:8000/predict-with-base-curve) o (http://localhost:8001/predict-with-base-curve) si es produccion
    * n_days: número de días (default 60)
    * force_retrain: boolean
    * timeoutMs: timeout en ms (default 2 minutos)
@@ -660,7 +660,8 @@ export default class PronosticosService {
     force_retrain = false,
     ucp,
     timeoutMs = 600000,
-    modelo = false // Nuevo parámetro: false = /predict, true = /base-curve
+    modelo = false, // Nuevo parámetro: false = /predict-with-base-curve, true = /base-curve
+    data
   ) {
     const hostsToTry = ["127.0.0.1", "localhost"];
     //puerto produccion
@@ -668,13 +669,13 @@ export default class PronosticosService {
     //puerto desarrollo
     // const port = 8000;
 
-    // Solo calcular n_days si es el modelo predict
-    const n_days = !modelo ? daysBetweenISO(inicioIso, finIso) + 1 : null;
+    // Solo calcular n_days si es el modelo /predict-with-base-curve
+    const n_days = daysBetweenISO(inicioIso, finIso) + 1;
 
     for (const host of hostsToTry) {
       try {
         // Determinar endpoint y body según el modelo
-        const endpoint = modelo ? "/base-curve" : "/predict";
+        const endpoint = modelo ? "/base-curve" : "/predict-with-base-curve";
         const url = `http://${host}:${port}${endpoint}`;
 
         const controller = new AbortController();
@@ -697,10 +698,13 @@ export default class PronosticosService {
           // Modelo predict
           const endDateForApi = addDaysISO(inicioIso, -1);
           requestBody = {
+            fecha_inicio: inicioIso,
+            fecha_fin: finIso,
             end_date: endDateForApi,
             n_days: n_days,
             force_retrain,
             ucp,
+            data,
           };
         }
 
@@ -718,7 +722,7 @@ export default class PronosticosService {
 
         const statusCode = res.status;
         const json = await res.json().catch(() => null);
-
+        console.log("Respuesta callPredict:", json);
         if (!res.ok) {
           Logger.warn(
             colors.yellow(
@@ -762,7 +766,7 @@ export default class PronosticosService {
     return { success: false, statusCode: 0, data: null };
   }
 
-  play = async (mc, finicio, ffin, force_retrain, modelo = false) => {
+  play = async (mc, finicio, ffin, force_retrain, modelo = false, data) => {
     try {
       // Validaciones básicas
       if (!mc || String(mc).trim() === "") {
@@ -877,7 +881,8 @@ export default class PronosticosService {
           !!force_retrain,
           mc,
           600000,
-          modelo // Pasar el parámetro modelo
+          modelo, // Pasar el parámetro modelo
+          data
         );
         // log sencillo (no vuelques raw)
         Logger.info(
@@ -894,11 +899,11 @@ export default class PronosticosService {
             predRes?.data?.curves &&
             typeof predRes.data.curves === "object";
         } else {
-          // Validación para predict
+          // Validación para predict-with-base-curve
           isValidResponse =
             predRes?.success &&
-            predRes?.data?.status === "success" &&
-            Array.isArray(predRes?.data?.predictions);
+            predRes?.data &&
+            typeof predRes.data.resultado === "object";
         }
 
         if (!isValidResponse) {
@@ -1090,47 +1095,52 @@ export default class PronosticosService {
           (a, b) => new Date(a.fecha) - new Date(b.fecha)
         );
       } else {
-        // Procesamiento para predict (código original)
-        if (
-          predRes?.data?.predictions &&
-          Array.isArray(predRes.data.predictions)
-        ) {
-          PeriodosPronosticos = predRes.data.predictions
-            .filter((p) => {
-              const fechaIso = toISODateString(p.fecha);
-              return (
-                new Date(fechaIso) >= new Date(inicioIso) &&
-                new Date(fechaIso) <= new Date(finIso)
-              );
-            })
-            .map((p) => ({
-              fecha: toISODateString(p.fecha),
-              p1: toNumberSafe(p.P1),
-              p2: toNumberSafe(p.P2),
-              p3: toNumberSafe(p.P3),
-              p4: toNumberSafe(p.P4),
-              p5: toNumberSafe(p.P5),
-              p6: toNumberSafe(p.P6),
-              p7: toNumberSafe(p.P7),
-              p8: toNumberSafe(p.P8),
-              p9: toNumberSafe(p.P9),
-              p10: toNumberSafe(p.P10),
-              p11: toNumberSafe(p.P11),
-              p12: toNumberSafe(p.P12),
-              p13: toNumberSafe(p.P13),
-              p14: toNumberSafe(p.P14),
-              p15: toNumberSafe(p.P15),
-              p16: toNumberSafe(p.P16),
-              p17: toNumberSafe(p.P17),
-              p18: toNumberSafe(p.P18),
-              p19: toNumberSafe(p.P19),
-              p20: toNumberSafe(p.P20),
-              p21: toNumberSafe(p.P21),
-              p22: toNumberSafe(p.P22),
-              p23: toNumberSafe(p.P23),
-              p24: toNumberSafe(p.P24),
-              observacion: "",
-            }));
+        // Procesamiento para predict-with-base-curve (código original)
+        if (!modelo && predRes?.data?.resultado) {
+          const resultado = predRes.data.resultado;
+
+          for (const [fecha, valores] of Object.entries(resultado)) {
+            const fechaIso = toISODateString(fecha);
+
+            if (
+              new Date(fechaIso) >= new Date(inicioIso) &&
+              new Date(fechaIso) <= new Date(finIso)
+            ) {
+              PeriodosPronosticos.push({
+                fecha: fechaIso,
+                p1: toNumberSafe(valores.P1),
+                p2: toNumberSafe(valores.P2),
+                p3: toNumberSafe(valores.P3),
+                p4: toNumberSafe(valores.P4),
+                p5: toNumberSafe(valores.P5),
+                p6: toNumberSafe(valores.P6),
+                p7: toNumberSafe(valores.P7),
+                p8: toNumberSafe(valores.P8),
+                p9: toNumberSafe(valores.P9),
+                p10: toNumberSafe(valores.P10),
+                p11: toNumberSafe(valores.P11),
+                p12: toNumberSafe(valores.P12),
+                p13: toNumberSafe(valores.P13),
+                p14: toNumberSafe(valores.P14),
+                p15: toNumberSafe(valores.P15),
+                p16: toNumberSafe(valores.P16),
+                p17: toNumberSafe(valores.P17),
+                p18: toNumberSafe(valores.P18),
+                p19: toNumberSafe(valores.P19),
+                p20: toNumberSafe(valores.P20),
+                p21: toNumberSafe(valores.P21),
+                p22: toNumberSafe(valores.P22),
+                p23: toNumberSafe(valores.P23),
+                p24: toNumberSafe(valores.P24),
+                observacion: "",
+              });
+            }
+          }
+
+          // Ordenar por fecha
+          PeriodosPronosticos.sort(
+            (a, b) => new Date(a.fecha) - new Date(b.fecha)
+          );
         }
       }
 
@@ -1140,9 +1150,9 @@ export default class PronosticosService {
         typeof predData.should_retrain !== "undefined"
           ? predData.should_retrain
           : null;
-      const rawPredictions = Array.isArray(predData.predictions)
-        ? predData.predictions
-        : predData.curves || null;
+
+      let rawPredictions =
+        predData.predictions ?? predData.curves ?? predData.resultado ?? null;
 
       // Armar respuesta
       const payload = {

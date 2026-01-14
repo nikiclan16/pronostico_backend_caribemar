@@ -223,8 +223,8 @@ export async function generateTxtToFolder({
           const potenciaColName = isFestivo
             ? `potencia1`
             : diaSemanaIndex === 7
-              ? `potencia1`
-              : `potencia${diaSemanaIndex + 1}`;
+            ? `potencia1`
+            : `potencia${diaSemanaIndex + 1}`;
           // obtener valor vPotencia
           let vPotencia = 0;
           if (prow && prow[potenciaColName] != null) {
@@ -316,7 +316,12 @@ export async function generateXlsxToFolder({
     // Excel tiene un bug donde considera 1900 como año bisiesto, así que ajustamos
     const excelEpoch = moment.utc("1899-12-30", "YYYY-MM-DD");
     const days = mom.startOf("day").diff(excelEpoch.startOf("day"), "days");
-    return days;
+    return Math.floor(days); // 🔴 CLAVE: sin decimales
+  };
+
+  const excelDateText = (m) => {
+    if (!m) return "";
+    return m.format("DD/MM/YYYY");
   };
 
   // ordenar pronostico por fecha asc
@@ -435,13 +440,19 @@ export async function generateXlsxToFolder({
         const rounded = roundDotNet(raw);
         ws.addRow([
           codAbrevValue,
-          toExcelDateSerial(mDate),
+          excelDateText(mDate),
           p,
           rounded,
           codigoColeccionEnergia,
         ]);
       } else {
-        ws.addRow([codAbrevValue, toExcelDateSerial(mDate), p, 0.0, codigoColeccionEnergia]);
+        ws.addRow([
+          codAbrevValue,
+          excelDateText(mDate),
+          p,
+          0.0,
+          codigoColeccionEnergia,
+        ]);
       }
     }
   }
@@ -459,7 +470,13 @@ export async function generateXlsxToFolder({
 
       if (!potenciaRow) {
         // no configurada -> escribir 0
-        ws.addRow([codAbrevValue, toExcelDateSerial(mDate), p, 0.0, codigoColeccionPotencia]);
+        ws.addRow([
+          codAbrevValue,
+          excelDateText(mDate),
+          p,
+          0.0,
+          codigoColeccionPotencia,
+        ]);
         continue;
       }
 
@@ -494,8 +511,8 @@ export async function generateXlsxToFolder({
       const potenciaColName = isFestivo
         ? "potencia1"
         : diaNumero === 7
-          ? "potencia1"
-          : `potencia${diaNumero + 1}`;
+        ? "potencia1"
+        : `potencia${diaNumero + 1}`;
 
       // buscar potencia en potenciaRow (case-insensitive)
       let vPotencia = 0;
@@ -517,7 +534,7 @@ export async function generateXlsxToFolder({
       const roundedTP = roundDotNet(tPotencia);
       ws.addRow([
         codAbrevValue,
-        toExcelDateSerial(mDate),
+        excelDateText(mDate),
         p,
         roundedTP,
         codigoColeccionPotencia,
@@ -534,7 +551,11 @@ export async function generateXlsxToFolder({
     { width: 18 }, // CODIGOCOLECCION
   ];
   ws.views = [{ state: "frozen", ySplit: 1 }];
-
+  // Alinear FECHA (columna 2) a la derecha
+  ws.getColumn(2).eachCell({ includeEmpty: true }, (cell, rowNumber) => {
+    if (rowNumber === 1) return; // no tocar header
+    cell.alignment = { horizontal: "right", vertical: "middle" };
+  });
   // Guardar archivo
   await wb.xlsx.writeFile(xlsxPath);
 
