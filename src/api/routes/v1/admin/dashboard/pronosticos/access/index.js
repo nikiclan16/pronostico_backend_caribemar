@@ -56,6 +56,7 @@ export const play = async (req, res) => {
     fecha_fin,
     force_retrain,
     modelo = false,
+    data,
   } = req.body;
   try {
     const result = await service.play(
@@ -63,7 +64,8 @@ export const play = async (req, res) => {
       fecha_inicio,
       fecha_fin,
       force_retrain,
-      modelo
+      modelo,
+      data
     );
     if (!result.success) return responseError(200, result.message, 404, res);
     return SuccessResponse(res, result.data, result.message);

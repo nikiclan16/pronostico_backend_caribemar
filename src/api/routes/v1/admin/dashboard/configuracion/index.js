@@ -237,7 +237,6 @@ export default function () {
     controllers.buscarTipicidad
   );
 
-  // routes/festivos.ts
   router.get(
     "/listarTipoModelo/:fechaInicio/:fechaFin/:ucp",
     validator(schema.listarTipoModeloPorRango),

@@ -297,10 +297,9 @@ SELECT
   TO_CHAR(fecha::date, 'YYYY-MM-DD') AS fecha,
   tipopronostico
 FROM fechas_tipopronostico
-WHERE fecha BETWEEN $1 AND $2
+WHERE fecha::date BETWEEN $1::date AND $2::date
   AND ucp = $3
 ORDER BY fecha ASC;
-
 `;
 
 export const upsertTipoPronostico = `
