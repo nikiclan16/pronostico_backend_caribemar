@@ -1119,4 +1119,33 @@ export default class ConfiguracionService {
       };
     }
   };
+
+  cargarHistoricosPronosticosDinamico = async (filters) => {
+    try {
+      const res = await model.cargarHistoricosPronosticosDinamico(filters);
+
+      if (!res) {
+        return {
+          success: false,
+          data: null,
+          message: "No se encontraron pronósticos históricos",
+        };
+      }
+
+      return {
+        success: true,
+        data: res,
+        message: "Pronósticos históricos encontrados",
+      };
+    } catch (error) {
+      Logger.error(
+        colors.red("Error service cargarHistoricosPronosticosDinamico")
+      );
+      return {
+        success: false,
+        data: null,
+        message: "Error al cargar pronósticos históricos",
+      };
+    }
+  };
 }

@@ -254,5 +254,11 @@ export default function () {
     controllers.cargarPeriodosDinamico
   );
 
+  router.post(
+    "/cargarHistoricosPronosticosDinamico",
+    validator(schema.cargarHistoricosPronosticosDinamico),
+    controllers.cargarHistoricosPronosticosDinamico
+  );
+
   return router;
 }
