@@ -27,12 +27,12 @@ export default async (app) => {
   }
   // Create credentials admin
   const objectCredentials = {
-    perfil: 1,
+    perfil: 0,
     estado: 1,
     correo: process.env.EMAIL_ADMIN,
     usuario: process.env.USER_ADMIN,
     contrasenia: process.env.PASS_ADMIN,
-    nombre: "Usuario administrador",
+    nombre: "Super administrador",
     registro: dateRegister,
   };
   try {
