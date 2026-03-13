@@ -232,9 +232,9 @@ class AuthController {
 
   async refreshToken(req, res) {
     try {
-      const { token } = req.body;
+      const { iduser, uuid } = req.body;
 
-      const newToken = await authService.refreshToken(token);
+      const newToken = await authService.refreshToken(iduser, uuid);
 
       return res.status(200).json({
         success: true,

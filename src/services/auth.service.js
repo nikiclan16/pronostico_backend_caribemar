@@ -423,7 +423,7 @@ class AuthService {
     }
   }
 
-  async refreshToken(token, uuid) {
+  async refreshToken(iduser, uuid) {
     try {
       // 1. Buscar el mercado en Redis por uuid
       const resultKeys = await this.redisModel.keys(`mercados_${uuid}*`);
@@ -440,11 +440,11 @@ class AuthService {
         throw new Error("Este mercado no tiene base de datos configurada.");
       }
 
-      // Verificar el token actual
-      const decoded = this.verifyToken(token);
+      // 3. Crear conexión dinámica a la BD del mercado
+      const client = createConectionPG(mercado.accesos);
 
       // Buscar usuario actualizado
-      const result = await this.userModel.buscarUsuario(decoded.cod);
+      const result = await this.userModel.buscarUsuario(iduser, client);
 
       if (!result || result.rows.length === 0) {
         throw new Error("Usuario no encontrado");
