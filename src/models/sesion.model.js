@@ -18,12 +18,42 @@ export default class SesionModel {
 
   createClient() {
     return new Client({
-      user: process.env.POSTGRES_USER,
-      host: process.env.POSTGRES_HOST || "localhost",
-      database: process.env.POSTGRES_DB,
-      password: process.env.POSTGRES_PASSWORD,
-      port: process.env.POSTGRES_PORT || 5432,
+      user: process.env.POSTGRES_USER_PROXY,
+      host: process.env.POSTGRES_HOS_PROXYT || "localhost",
+      database: process.env.POSTGRES_DB_PROXY,
+      password: process.env.POSTGRES_PASSWORD_PROXY,
+      port: process.env.POSTGRES_PORT_PROXY || 5432,
     });
+  }
+
+  // Conectar y desconectar cliente con logs
+  async executeQuery(queryFn, queryName) {
+    const client = this.createClient();
+    try {
+      await client.connect();
+      Logger.info(
+        `${colors.magenta("[  DB  ]")} *** [${colors.blue(client.processID)}]${colors.green("[  OPEN ]")} Conexión Client Pool PostgreSQL iniciada.`,
+      );
+
+      const result = await queryFn(client);
+
+      await client.end();
+      Logger.info(
+        `${colors.magenta("[  DB  ]")} *** [${colors.blue(client.processID)}]${colors.green("[  CLOSE ]")} Conexión Client Pool PostgreSQL finalizada.`,
+      );
+
+      return result;
+    } catch (error) {
+      Logger.error(colors.red(`Error MenuModel ${queryName} `), error);
+      if (client) {
+        await client
+          .end()
+          .catch((err) =>
+            Logger.error("Error durante la desconexión", err.stack),
+          );
+      }
+      throw new Error("ERROR TECNICO");
+    }
   }
 
   cargarDatosSesiones = async (codsuperior, client) => {
@@ -172,17 +202,11 @@ export default class SesionModel {
     }
   };
 
-  verificarFechaClima = async (ucp, client) => {
-    try {
-      await client.connect();
+  verificarFechaClima = async (ucp) => {
+    return this.executeQuery(async (client) => {
       const result = await client.query(querys.verificarFechaClima, [ucp]);
       return result.rows.length > 0 ? result.rows : null;
-    } catch (error) {
-      Logger.error(colors.red("Error sesionModel verificarFechaClima"));
-      throw error;
-    } finally {
-      await client.end();
-    }
+    }, "verificarFechaClima");
   };
 
   borrarDatosPronostico = async (client) => {
@@ -241,19 +265,19 @@ export default class SesionModel {
     }
   };
 
-  buscarRutaBatch = async (nombre) => {
-    const client = this.createClient();
-    try {
-      await client.connect();
-      const result = await client.query(querys.buscarRutaBatch, [nombre]);
-      return result.rows.length > 0 ? result.rows : null;
-    } catch (error) {
-      Logger.error(colors.red("Error sesionModel buscarRutaBatch"));
-      throw error;
-    } finally {
-      await client.end();
-    }
-  };
+  // buscarRutaBatch = async (nombre) => {
+  //   const client = this.createClient();
+  //   try {
+  //     await client.connect();
+  //     const result = await client.query(querys.buscarRutaBatch, [nombre]);
+  //     return result.rows.length > 0 ? result.rows : null;
+  //   } catch (error) {
+  //     Logger.error(colors.red("Error sesionModel buscarRutaBatch"));
+  //     throw error;
+  //   } finally {
+  //     await client.end();
+  //   }
+  // };
 
   cargarPeriodosPronosticosxUCPxFecha = async (
     ucp,
