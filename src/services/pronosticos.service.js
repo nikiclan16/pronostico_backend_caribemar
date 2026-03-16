@@ -1185,11 +1185,7 @@ export default class PronosticosService {
       }
 
       // 2) Validar que la fecha final esté dentro de la fecha del clima
-      const client2 = createConectionPG(session);
-      const vFechainicialClimaRows = await sesionModel.verificarFechaClima(
-        mc,
-        client2,
-      );
+      const vFechainicialClimaRows = await sesionModel.verificarFechaClima(mc);
       if (!vFechainicialClimaRows || vFechainicialClimaRows.length === 0) {
         return {
           success: false,
@@ -1828,13 +1824,11 @@ export default class PronosticosService {
 
   traerDatosClimaticos = async (ucp, fechainicio, fechafin, session) => {
     try {
-      const client = createConectionPG(session);
       const rows =
         await configuracionModel.cargarVariablesClimaticasxFechaPeriodos(
           ucp,
           fechainicio,
           fechafin,
-          client,
         );
 
       const resultado = [];

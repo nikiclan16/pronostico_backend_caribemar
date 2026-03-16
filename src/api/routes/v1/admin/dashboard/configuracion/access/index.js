@@ -186,32 +186,6 @@ export const cargarPeriodosxUCPDesdeFecha = async (req, res) => {
 export const cargarVariablesClimaticasxUCPDesdeFecha = async (req, res) => {
   try {
     const { ucp, fechaInicio } = req.params;
-    // Si viene con JWT usa su session, si no resuelve por ucp
-    let session = req.user?.session;
-
-    if (!session) {
-      const keys = await redisModel.keys(`mercados*`);
-
-      // keys = ["mercados_4a3442f8...", "mercados_otro..."]
-      // necesitas traer el valor de cada key
-      const mercadosParsed = await Promise.all(
-        keys.map(async (key) => {
-          const val = await redisModel.get(key);
-          return JSON.parse(val);
-        }),
-      );
-
-      session = await resolveSessionByUcp(ucp, mercadosParsed);
-    }
-
-    if (!session) {
-      return responseError(
-        200,
-        `No se encontró cliente para el ucp ${ucp}`,
-        404,
-        res,
-      );
-    }
 
     if (!ucp || !fechaInicio) {
       return responseError(
@@ -225,7 +199,6 @@ export const cargarVariablesClimaticasxUCPDesdeFecha = async (req, res) => {
     const result = await service.cargarVariablesClimaticasxUCPDesdeFecha(
       ucp,
       fechaInicio,
-      session,
     );
 
     if (!result.success) {
@@ -731,8 +704,7 @@ export const buscarUltimaFechaHistorica = async (req, res) => {
 
 export const buscarUltimaFechaClimaLog = async (req, res) => {
   try {
-    const { session } = req.user;
-    const result = await service.buscarUltimaFechaClimaLog(session);
+    const result = await service.buscarUltimaFechaClimaLog();
     if (!result.success)
       return res.status(500).json({ success: false, message: result.message });
     return res
@@ -764,8 +736,7 @@ export const buscarKey = async (req, res) => {
 };
 export const buscarUltimaFechaClima = async (req, res) => {
   try {
-    const { session } = req.user;
-    const result = await service.buscarUltimaFechaClima(session);
+    const result = await service.buscarUltimaFechaClima();
     if (!result.success)
       return res.status(500).json({ success: false, message: result.message });
     return res
@@ -938,9 +909,8 @@ export const actualizarUCPActualizacionDatos = async (req, res) => {
 
 export const buscarClimaPeriodos = async (req, res) => {
   const { ucp, fecha } = req.params;
-  const { session } = req.user;
   try {
-    const result = await service.buscarClimaPeriodos(ucp, fecha, session);
+    const result = await service.buscarClimaPeriodos(ucp, fecha);
     if (!result.success) {
       return responseError(200, result.message, 404, res);
     }
@@ -954,7 +924,6 @@ export const buscarClimaPeriodos = async (req, res) => {
 
 export const agregarClimaPronosticoLog = async (req, res) => {
   const { fecha, ucp } = req.params;
-  const { session } = req.user;
   try {
     const result = await service.agregarClimaPronosticoLog(fecha, ucp, session);
     if (!result.success) return responseError(200, result.message, 400, res);

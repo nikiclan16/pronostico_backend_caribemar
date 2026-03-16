@@ -264,17 +264,11 @@ export default class ConfiguracionService {
     }
   };
 
-  cargarVariablesClimaticasxUCPDesdeFecha = async (
-    ucp,
-    fechaInicio,
-    session,
-  ) => {
+  cargarVariablesClimaticasxUCPDesdeFecha = async (ucp, fechaInicio) => {
     try {
-      const client = createConectionPG(session);
       const res = await model.cargarVariablesClimaticasxUCPDesdeFecha(
         ucp,
         fechaInicio,
-        client,
       );
 
       if (!res) {
@@ -284,7 +278,6 @@ export default class ConfiguracionService {
           message: `no se pudo encontrar las variables climaticas de ${ucp}`,
         };
       }
-
       return {
         success: true,
         data: res,
@@ -753,10 +746,9 @@ export default class ConfiguracionService {
     }
   };
 
-  buscarUltimaFechaClimaLog = async (session) => {
+  buscarUltimaFechaClimaLog = async () => {
     try {
-      const client = createConectionPG(session);
-      const row = await model.buscarUltimaFechaClimaLog(client);
+      const row = await model.buscarUltimaFechaClimaLog();
       return { success: true, data: row, message: "Búsqueda completada." };
     } catch (error) {
       Logger.error(
@@ -786,10 +778,9 @@ export default class ConfiguracionService {
     }
   };
 
-  buscarUltimaFechaClima = async (session) => {
+  buscarUltimaFechaClima = async () => {
     try {
-      const client = createConectionPG(session);
-      const row = await model.buscarUltimaFechaClima(client);
+      const row = await model.buscarUltimaFechaClima();
       return { success: true, data: row, message: "Búsqueda completada." };
     } catch (error) {
       Logger.error(
@@ -979,10 +970,9 @@ export default class ConfiguracionService {
       };
     }
   };
-  buscarClimaPeriodos = async (ucp, fecha, session) => {
+  buscarClimaPeriodos = async (ucp, fecha) => {
     try {
-      const client = createConectionPG(session);
-      const rows = await model.buscarClimaPeriodos(ucp, fecha, client);
+      const rows = await model.buscarClimaPeriodos(ucp, fecha);
       return { success: true, data: rows, message: "Búsqueda completada." };
     } catch (error) {
       Logger.error(
@@ -997,10 +987,9 @@ export default class ConfiguracionService {
     }
   };
 
-  agregarClimaPronosticoLog = async (fecha, ucp, session) => {
+  agregarClimaPronosticoLog = async (fecha, ucp) => {
     try {
-      const client = createConectionPG(session);
-      const row = await model.agregarClimaPronosticoLog(fecha, ucp, client);
+      const row = await model.agregarClimaPronosticoLog(fecha, ucp);
       if (!row)
         return {
           success: false,

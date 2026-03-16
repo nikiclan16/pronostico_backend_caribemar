@@ -16,6 +16,45 @@ export default class ConfiguracionModel {
     return ConfiguracionModel.instance;
   }
 
+  createClient() {
+    return new Client({
+      user: process.env.POSTGRES_USER_PROXY,
+      host: process.env.POSTGRES_HOS_PROXYT || "localhost",
+      database: process.env.POSTGRES_DB_PROXY,
+      password: process.env.POSTGRES_PASSWORD_PROXY,
+      port: process.env.POSTGRES_PORT_PROXY || 5432,
+    });
+  }
+
+  // Conectar y desconectar cliente con logs
+  async executeQuery(queryFn, queryName) {
+    const client = this.createClient();
+    try {
+      await client.connect();
+      Logger.info(
+        `${colors.magenta("[  DB  ]")} *** [${colors.blue(client.processID)}]${colors.green("[  OPEN ]")} Conexión Client Pool PostgreSQL iniciada.`,
+      );
+
+      const result = await queryFn(client);
+
+      await client.end();
+      Logger.info(
+        `${colors.magenta("[  DB  ]")} *** [${colors.blue(client.processID)}]${colors.green("[  CLOSE ]")} Conexión Client Pool PostgreSQL finalizada.`,
+      );
+
+      return result;
+    } catch (error) {
+      Logger.error(colors.red(`Error MenuModel ${queryName} `), error);
+      if (client) {
+        await client
+          .end()
+          .catch((err) =>
+            Logger.error("Error durante la desconexión", err.stack),
+          );
+      }
+      throw new Error("ERROR TECNICO");
+    }
+  }
   buscarSaveDocumento = async (aux3, client) => {
     try {
       await client.connect();
@@ -323,28 +362,14 @@ export default class ConfiguracionModel {
     }
   };
 
-  cargarVariablesClimaticasxUCPDesdeFecha = async (
-    ucp,
-    fechaInicio,
-    client,
-  ) => {
-    try {
-      await client.connect();
+  cargarVariablesClimaticasxUCPDesdeFecha = async (ucp, fechaInicio) => {
+    return this.executeQuery(async (client) => {
       const result = await client.query(
         querys.cargarVariablesClimaticasxUCPDesdeFecha,
         [ucp, fechaInicio],
       );
       return result.rows.length > 0 ? result.rows : null;
-    } catch (error) {
-      Logger.error(
-        colors.red(
-          "Error configuracionModel cargarVariablesClimaticasxUCPDesdeFecha",
-        ),
-      );
-      throw error;
-    } finally {
-      await client.end();
-    }
+    }, "cargarVariablesClimaticasxUCPDesdeFecha");
   };
 
   cargarPeriodosxUCPxUnaFechaxLimite = async (
@@ -736,36 +761,18 @@ export default class ConfiguracionModel {
     }
   }
 
-  async buscarUltimaFechaClimaLog(client) {
-    try {
-      await client.connect();
-      const res = await client.query(querys.buscarUltimaFechaClimaLog);
-      return res.rows.length > 0 ? res.rows[0] : null;
-    } catch (error) {
-      Logger.error(
-        colors.red("Error ActualizacionModel buscarUltimaFechaClimaLog"),
-        error,
-      );
-      throw error;
-    } finally {
-      await client.end();
-    }
+  async buscarUltimaFechaClimaLog() {
+    return this.executeQuery(async (client) => {
+      const result = await client.query(querys.buscarUltimaFechaClimaLog);
+      return result.rows.length > 0 ? result.rows[0] : null;
+    }, "buscarUltimaFechaClimaLog");
   }
 
-  async buscarUltimaFechaClima(client) {
-    try {
-      await client.connect();
-      const res = await client.query(querys.buscarUltimaFechaClima);
-      return res.rows.length > 0 ? res.rows[0] : null;
-    } catch (error) {
-      Logger.error(
-        colors.red("Error ActualizacionModel buscarUltimaFechaClima"),
-        error,
-      );
-      throw error;
-    } finally {
-      await client.end();
-    }
+  async buscarUltimaFechaClima() {
+    return this.executeQuery(async (client) => {
+      const result = await client.query(querys.buscarUltimaFechaClima);
+      return result.rows.length > 0 ? result.rows[0] : null;
+    }, "buscarUltimaFechaClima");
   }
 
   async buscarKey(client) {
@@ -990,40 +997,24 @@ export default class ConfiguracionModel {
     }
   };
 
-  async buscarClimaPeriodos(ucp, fecha, client) {
-    try {
-      await client.connect();
-      const res = await client.query(querys.buscarClimaPeriodos, [ucp, fecha]);
-      return res.rows.length > 0 ? res.rows : null;
-    } catch (error) {
-      Logger.error(
-        colors.red("Error ActualizacionModel buscarClimaPeriodos"),
-        error,
-      );
-      throw error;
-    } finally {
-      await client.end();
-    }
+  async buscarClimaPeriodos(ucp, fecha) {
+    return this.executeQuery(async (client) => {
+      const result = await client.query(querys.buscarClimaPeriodos, [
+        ucp,
+        fecha,
+      ]);
+      return result.rows.length > 0 ? result.rows : null;
+    }, "buscarClimaPeriodos");
   }
 
-  async agregarClimaPronosticoLog(fecha, ucp, client) {
-    try {
-      await client.connect();
-      const res = await client.query(querys.agregarClimaPronosticoLog, [
+  async agregarClimaPronosticoLog(fecha, ucp) {
+    return this.executeQuery(async (client) => {
+      const result = await client.query(querys.agregarClimaPronosticoLog, [
         fecha,
         ucp,
       ]);
-      // Si quieres sólo true/false podrías devolver res.rowCount > 0
-      return res.rows.length > 0 ? res.rows[0] : null;
-    } catch (error) {
-      Logger.error(
-        colors.red("Error ActualizacionModel agregarClimaPronosticoLog"),
-        error,
-      );
-      throw error;
-    } finally {
-      await client.end();
-    }
+      return result.rows.length > 0 ? result.rows[0] : null;
+    }, "agregarClimaPronosticoLog");
   }
 
   async agregarClimaPeriodo(fecha, ucp, indice, clima, valor, client) {
@@ -1092,22 +1083,14 @@ export default class ConfiguracionModel {
     }
   }
 
-  async cargarVariablesClimaticasxFechaPeriodos(
-    ucp,
-    fechainicio,
-    fechafin,
-    client,
-  ) {
-    try {
-      await client.connect();
-      const res = await client.query(
+  async cargarVariablesClimaticasxFechaPeriodos(ucp, fechainicio, fechafin) {
+    return this.executeQuery(async (client) => {
+      const result = await client.query(
         querys.cargarVariablesClimaticasxFechaPeriodos,
         [ucp, fechainicio, fechafin],
       );
-      return res.rows.length ? res.rows : [];
-    } finally {
-      await client.end();
-    }
+      return result.rows.length > 0 ? result.rows : [];
+    }, "cargarVariablesClimaticasxFechaPeriodos");
   }
 
   async buscarIcono(id, dia, noche, client) {
