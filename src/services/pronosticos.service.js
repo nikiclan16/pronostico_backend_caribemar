@@ -139,6 +139,53 @@ const formatPredictDayResponse = (apiData) => {
   };
 };
 
+const formatPredictDayScaledResponse = (apiData) => {
+  const prediction = apiData?.prediction?.predictions?.[0];
+  const referencia = apiData?.history?.referencia;
+  const scaled = apiData?.scaled;
+
+  if (!prediction) {
+    return null;
+  }
+
+  return {
+    resumen: {
+      fecha: prediction.fecha,
+      diaSemana: prediction.dia_semana,
+      demandaTotal: prediction.demanda_total,
+      esFestivo: prediction.is_festivo,
+      esFinDeSemana: prediction.is_weekend,
+      modelo: apiData?.prediction?.metadata?.modelo_usado,
+      shouldRetrain: apiData?.prediction?.should_retrain,
+      reason: apiData?.prediction?.reason,
+    },
+
+    // Predicción por horas
+    horas: mapHourlyObject(prediction),
+
+    // Referencia histórica
+    referencia: referencia?.valores ? mapHourlyObject(referencia.valores) : [],
+
+    // Ya no viene en el API → lo dejamos vacío (seguro)
+    comparaciones: [],
+
+    // Ajustes desde scaled
+    ajustes: {
+      scaleFactor:
+        scaled?.scale_factor != null
+          ? Number(scaled.scale_factor.toFixed(4))
+          : null,
+
+      perfilAjustado: scaled?.profile ? mapHourlyObject(scaled.profile) : [],
+    },
+
+    flags: {
+      metodoDesagregacion: prediction.metodo_desagregacion,
+      clusterId: prediction.cluster_id,
+    },
+  };
+};
+
 export default class PronosticosService {
   static instance;
   static getInstance() {
@@ -1014,7 +1061,6 @@ export default class PronosticosService {
     const port = 8001;
     //puerto desarrollo
     // const port = 8000;
-    console.log("data en callPredict:", data);
     // Solo calcular n_days si es el modelo /predict-with-base-curve
     const n_days = daysBetweenISO(inicioIso, finIso) + 1;
 
@@ -1068,7 +1114,6 @@ export default class PronosticosService {
 
         const statusCode = res.status;
         const json = await res.json().catch(() => null);
-        console.log("Respuesta callPredict:", json);
         if (!res.ok) {
           Logger.warn(
             colors.yellow(
@@ -2198,6 +2243,118 @@ export default class PronosticosService {
 
     Logger.error(colors.red(`analyzeDeviation: Falló en todos los hosts`));
 
+    return { success: false, statusCode: 0, data: null };
+  }
+
+  async predictDayScaled({
+    ucp,
+    fecha,
+    fecha_referencia,
+    force_retrain = false,
+    offset_scalar = 1,
+    timeoutMs = 120000,
+  }) {
+    const hostsToTry = ["127.0.0.1", "localhost"];
+    //puerto produccion
+    const port = 8001;
+    //puerto desarrollo
+    // const port = 8000;
+    const endpoint = "/predict-day-scaled";
+
+    // Normalizar fechas
+    const fechaIso = toISODateString(fecha);
+    const fechaRefIso = toISODateString(fecha_referencia);
+
+    if (!ucp || !fechaIso || !fechaRefIso) {
+      return {
+        success: false,
+        statusCode: 0,
+        data: null,
+        message: "Parámetros inválidos para predictDayScaled",
+      };
+    }
+
+    for (const host of hostsToTry) {
+      try {
+        const url = `http://${host}:${port}${endpoint}`;
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+        const body = {
+          ucp,
+          fecha: fechaIso,
+          fecha_referencia: fechaRefIso,
+          force_retrain: !!force_retrain,
+          offset_scalar,
+        };
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timer);
+
+        const statusCode = res.status;
+        const json = await res.json().catch(() => null);
+
+        Logger.info(
+          "Respuesta predictDayScaled:",
+          JSON.stringify(json, null, 2),
+        );
+
+        if (!res.ok) {
+          Logger.warn(
+            colors.yellow(
+              `predictDayScaled: HTTP ${statusCode} desde ${host}:${port}`,
+            ),
+          );
+          return { success: false, statusCode, data: json };
+        }
+
+        // Validación mínima del payload
+        if (!json?.prediction || !Array.isArray(json.prediction.predictions)) {
+          return {
+            success: false,
+            statusCode,
+            data: json,
+            message: "Payload inesperado en predictDayScaled",
+          };
+        }
+
+        const formatted = formatPredictDayScaledResponse(json);
+
+        return {
+          success: true,
+          statusCode,
+          data: formatted,
+        };
+      } catch (err) {
+        if (err?.name === "AbortError") {
+          Logger.warn(
+            colors.yellow(
+              `predictDayScaled: timeout (${timeoutMs}ms) hacia ${host}:${port}`,
+            ),
+          );
+        } else {
+          Logger.warn(
+            colors.yellow(
+              `predictDayScaled: error conectando a ${host}:${port} — ${
+                err?.message || err
+              }`,
+            ),
+          );
+        }
+      }
+    }
+
+    Logger.error(colors.red("predictDayScaled: falló en todos los hosts"));
     return { success: false, statusCode: 0, data: null };
   }
 }

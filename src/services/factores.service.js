@@ -346,7 +346,30 @@ export default class FactoresService {
     n_max,
     barra,
     timeoutMs = 600000,
+    session,
   ) {
+    // Helper: genera db_url desde session
+    const generateDbUrl = (session) => {
+      try {
+        const { host, usuario, contrasenia, puerto, basededatos } = session;
+
+        if (!host || !usuario || !puerto || !basededatos) {
+          throw new Error("Missing required database connection parameters");
+        }
+
+        if (contrasenia) {
+          return `postgresql://${usuario}:${contrasenia}@${host}:${puerto}/${basededatos}`;
+        } else {
+          return `postgresql://${usuario}@${host}:${puerto}/${basededatos}`;
+        }
+      } catch (error) {
+        Logger.error("Error generating database URL:", error);
+        throw error;
+      }
+    };
+
+    const database_url = generateDbUrl(session);
+
     const hostsToTry = ["127.0.0.1", "localhost"];
     //puerto produccion
     // const port = 8003;
@@ -378,6 +401,7 @@ export default class FactoresService {
             flujo_tipo,
             n_max,
             barra,
+            database_url,
           }),
           signal,
         });

@@ -58,5 +58,11 @@ export default function () {
     controllers.analyzeDeviation,
   );
 
+  router.post(
+    "/predictDayScaled",
+    validator(schema.predictDay),
+    controllers.predictDayScaled,
+  );
+
   return router;
 }

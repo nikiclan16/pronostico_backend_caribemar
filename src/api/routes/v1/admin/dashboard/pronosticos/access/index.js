@@ -6,8 +6,11 @@ import {
   InternalError,
   responseError,
 } from "../../../../../../../helpers/api.response.js";
+import { resolveSessionByUcp } from "../../../../../../../helpers/resolveSessionByUcp.js";
+import RedisModel from "../../../../../../../models/redis.model.js";
 
 const service = PronosticosService.getInstance();
+const redisModel = RedisModel.getInstance();
 
 export const exportarBulk = async (req, res) => {
   const {
@@ -322,6 +325,109 @@ export const analyzeDeviation = async (req, res) => {
       result.data, // lo que devuelva el microservicio que consulta OpenAI
       "Análisis de desvíos obtenido correctamente",
     );
+  } catch (err) {
+    Logger.error(err);
+    return InternalError(res);
+  }
+};
+
+export const predictDayScaled = async (req, res) => {
+  try {
+    const { ucp, fecha, fecha_referencia } = req.body;
+    const { session } = req.user;
+    const result = await service.predictDayScaled({
+      ucp,
+      fecha,
+      fecha_referencia,
+      force_retrain: false,
+      offset_scalar: 1,
+      timeoutMs: 120000,
+    });
+
+    if (!result.success) {
+      return responseError(
+        200,
+        result.message || "Error en predictDayScaled",
+        404,
+        res,
+      );
+    }
+
+    return SuccessResponse(
+      res,
+      result.data,
+      "Predicción escalada generada correctamente",
+    );
+  } catch (err) {
+    Logger.error(err);
+    return InternalError(res);
+  }
+};
+
+export const playPublic = async (req, res) => {
+  const {
+    ucp,
+    fecha_inicio: _fecha_inicio,
+    fecha_fin: _fecha_fin,
+    force_retrain,
+    modelo = false,
+    data,
+  } = req.body;
+  let session = req?.user?.session;
+
+  // Normalizar fechas: acepta YYYY-MM-DD (React) y DD-MM-YYYY (.NET)
+  const parseFecha = (f) => {
+    if (!f) return f;
+    const s = String(f).trim();
+    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+      // DD-MM-YYYY
+      const [d, m, y] = s.split("-");
+      return `${y}-${m}-${d}`;
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+      // DD/MM/YYYY
+      const [d, m, y] = s.split("/");
+      return `${y}-${m}-${d}`;
+    }
+    return s; // Ya viene YYYY-MM-DD
+  };
+
+  const fecha_inicio = parseFecha(_fecha_inicio);
+  const fecha_fin = parseFecha(_fecha_fin);
+
+  try {
+    console.log(fecha_inicio, fecha_fin);
+    if (!session) {
+      const keys = await redisModel.keys(`mercados*`);
+      const mercadosParsed = await Promise.all(
+        keys.map(async (key) => {
+          const val = await redisModel.get(key);
+          return JSON.parse(val);
+        }),
+      );
+      session = await resolveSessionByUcp(ucp, mercadosParsed);
+    }
+
+    if (!session) {
+      return responseError(
+        200,
+        `No se encontró cliente para el ucp ${ucp}`,
+        404,
+        res,
+      );
+    }
+    console.log("session:", session);
+    const result = await service.play(
+      ucp,
+      fecha_inicio,
+      fecha_fin,
+      force_retrain,
+      modelo,
+      data,
+      session,
+    );
+    if (!result.success) return responseError(200, result.message, 404, res);
+    return SuccessResponse(res, result.data, result.message);
   } catch (err) {
     Logger.error(err);
     return InternalError(res);
