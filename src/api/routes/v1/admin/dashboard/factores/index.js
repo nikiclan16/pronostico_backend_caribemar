@@ -162,5 +162,11 @@ export default function () {
     controllers.obtenerDatosCompletoBarra,
   );
 
+  router.post(
+    "/guardarSesionReporteFactores",
+    validator(schema.guardarSesionReporteFactores),
+    controllers.guardarSesionReporteFactores,
+  );
+
   return router;
 }

@@ -443,4 +443,98 @@ export default class FactoresModel {
       await client.end();
     }
   }
+
+  buscarVersionSesionFactores = async (nombre, client) => {
+    try {
+      await client.connect();
+      const result = await client.query(querys.buscarVersionSesionFactores, [
+        nombre,
+      ]);
+      return result.rows;
+    } catch (error) {
+      Logger.error(colors.red("Error buscarVersionSesionFactores"), error);
+      throw error;
+    } finally {
+      await client.end();
+    }
+  };
+
+  agregarSesionFactores = async (datos, client) => {
+    try {
+      await client.connect();
+      const result = await client.query(querys.agregarSesionFactores, [
+        datos.fecha,
+        datos.ucp,
+        datos.fecha_inicio,
+        datos.fecha_fin,
+        datos.usuario,
+        datos.nombre,
+        datos.version,
+        datos.nombrearchivo,
+        datos.observacion ?? "",
+      ]);
+      return result.rows[0] ?? null;
+    } catch (error) {
+      Logger.error(colors.red("Error agregarSesionFactores"), error);
+      throw error;
+    } finally {
+      await client.end();
+    }
+  };
+
+  agregarRefFactores = async (datos, client) => {
+    try {
+      await client.connect();
+      const ps = Array.from({ length: 24 }, (_, i) => datos[`p${i + 1}`] ?? 0);
+      const result = await client.query(querys.agregarRefFactores, [
+        datos.codsesion,
+        datos.tipo_dia,
+        datos.tipo_energia,
+        ...ps,
+      ]);
+      return result.rows[0] ?? null;
+    } catch (error) {
+      Logger.error(colors.red("Error agregarRefFactores"), error);
+      throw error;
+    } finally {
+      await client.end();
+    }
+  };
+
+  agregarFactorSesion = async (datos, client) => {
+    try {
+      await client.connect();
+      const ps = Array.from({ length: 24 }, (_, i) => datos[`p${i + 1}`] ?? 0);
+      const result = await client.query(querys.agregarFactorSesion, [
+        datos.codsesion,
+        datos.tipo_dia,
+        datos.tipo_factor,
+        datos.barra,
+        ...ps,
+      ]);
+      return result.rows[0] ?? null;
+    } catch (error) {
+      Logger.error(colors.red("Error agregarFactorSesion"), error);
+      throw error;
+    } finally {
+      await client.end();
+    }
+  };
+
+  agregarArchivoSesionFactores = async (datos, client) => {
+    try {
+      await client.connect();
+      const result = await client.query(querys.agregarArchivoSesionFactores, [
+        datos.codsesion,
+        datos.codarchivo,
+        datos.tipo ?? "xlsx",
+      ]);
+      return result.rows[0] ?? null;
+    } catch (error) {
+      Logger.error(colors.red("Error agregarArchivoSesionFactores"), error);
+      throw error;
+    } finally {
+      await client.end();
+    }
+  };
 }

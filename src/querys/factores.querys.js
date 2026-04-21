@@ -224,3 +224,48 @@ ORDER BY ME.fecha ASC
 `;
 
 export const buscarUltimaFechaMedida = `SELECT * FROM medidas ORDER BY fecha DESC LIMIT 1`;
+
+export const buscarVersionSesionFactores = `
+  SELECT * FROM factores_sesiones
+  WHERE nombre = $1
+  ORDER BY version DESC
+  LIMIT 1
+`;
+
+export const agregarSesionFactores = `
+  INSERT INTO factores_sesiones (
+    fecha, ucp, fecha_inicio, fecha_fin,
+    usuario, nombre, version, nombrearchivo, observacion
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+  RETURNING *
+`;
+
+export const agregarRefFactores = `
+  INSERT INTO factores_sesiones_ref (
+    codsesion, tipo_dia, tipo_energia,
+    p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,
+    p13,p14,p15,p16,p17,p18,p19,p20,p21,p22,p23,p24
+  ) VALUES (
+    $1,$2,$3,
+    $4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+    $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27
+  ) RETURNING *
+`;
+
+export const agregarFactorSesion = `
+  INSERT INTO factores_sesiones_factores (
+    codsesion, tipo_dia, tipo_factor, barra,
+    p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,
+    p13,p14,p15,p16,p17,p18,p19,p20,p21,p22,p23,p24
+  ) VALUES (
+    $1,$2,$3,$4,
+    $5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,
+    $17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28
+  ) RETURNING *
+`;
+
+export const agregarArchivoSesionFactores = `
+  INSERT INTO factores_sesiones_archivos (codsesion, codarchivo, tipo)
+  VALUES ($1, $2, $3)
+  RETURNING *
+`;

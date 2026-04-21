@@ -679,3 +679,44 @@ export const obtenerDatosCompletoBarra = async (req, res) => {
       .json({ success: false, message: "Internal server error" });
   }
 };
+
+export const guardarSesionReporteFactores = async (req, res) => {
+  const { session } = req.user;
+  const {
+    ucp,
+    fecha_inicio,
+    fecha_fin,
+    usuario,
+    sumasRef,
+    resultadosFdaFdp,
+    observacion,
+  } = req.body;
+
+  try {
+    const result = await service.guardarSesionReporteFactores(
+      {
+        ucp,
+        fecha_inicio,
+        fecha_fin,
+        usuario,
+        resultadosFdaFdp,
+        sumasRef,
+        observacion,
+      },
+      session,
+    );
+    if (!result.success)
+      return res.status(500).json({ success: false, message: result.message });
+    return res
+      .status(200)
+      .json({ success: true, data: result, message: result.message });
+  } catch (err) {
+    Logger.error(
+      colors.red("Error controller guardarSesionReporteFactores"),
+      err,
+    );
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
+  }
+};

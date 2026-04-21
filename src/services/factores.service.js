@@ -4,6 +4,9 @@ import colors from "colors";
 import path from "path";
 import fs from "fs";
 import { createConectionPG } from "../helpers/connections.js";
+import { findOrCreateFolder } from "../utils/folders.js";
+import { insertFileRecord } from "../utils/reportGenerator.js";
+import { generateXlsxFactores } from "../utils/generateXlsxFactores.js";
 
 const model = FactoresModel.getInstance();
 
@@ -831,6 +834,207 @@ export default class FactoresService {
         success: false,
         data: null,
         message: "Error al obtener datos completos",
+      };
+    }
+  };
+  guardarSesionReporteFactores = async (params, session) => {
+    const {
+      ucp,
+      fecha_inicio,
+      fecha_fin,
+      usuario,
+      resultadosFdaFdp,
+      sumasRef, // ← reemplaza comboDataMap
+      observacion,
+    } = params;
+
+    try {
+      // ── 1. Nombre y versión ── (igual)
+      const hoy = new Date().toISOString().split("T")[0];
+      const nombre = `${ucp}_FACTORES_${fecha_inicio}_${fecha_fin}`;
+      const clientV = createConectionPG(session);
+      const versionRows = await model.buscarVersionSesionFactores(
+        nombre,
+        clientV,
+      );
+      const ultimaVersion = versionRows?.[0]?.version ?? 0;
+      const version = Number(ultimaVersion) + 1;
+      const nombrearchivo = `ReporteFactores_${ucp}_${hoy}_v${version}.xlsx`;
+
+      // ── 2. Crear sesión ── (igual)
+      const clientS = createConectionPG(session);
+      const sesion = await model.agregarSesionFactores(
+        {
+          fecha: new Date().toISOString(),
+          ucp,
+          fecha_inicio,
+          fecha_fin,
+          usuario,
+          nombre,
+          version,
+          nombrearchivo,
+          observacion: observacion ?? "",
+        },
+        clientS,
+      );
+      if (!sesion?.codigo)
+        throw new Error("No se pudo crear la sesión de factores");
+      const codsesion = sesion.codigo;
+
+      // ── 3. Guardar MW Ref y MVAR — directo desde sumasRef ──
+      for (const ref of sumasRef) {
+        const clientR = createConectionPG(session);
+        await model.agregarRefFactores(
+          {
+            codsesion,
+            tipo_dia: ref.tipo_dia,
+            tipo_energia: ref.tipo_energia,
+            ...ref.periodos,
+          },
+          clientR,
+        );
+      }
+
+      // ── 4. Guardar FDA y FDP por barra ──
+      for (const fila of resultadosFdaFdp) {
+        const clientF = createConectionPG(session);
+        await model.agregarFactorSesion(
+          {
+            codsesion,
+            tipo_dia: fila.tipoDia,
+            tipo_factor: fila.tipo, // "FDA" | "FDP"
+            barra: fila.barra,
+            ...fila.periodos,
+          },
+          clientF,
+        );
+      }
+
+      // ── 5. Guardar archivo en carpetas + archivos ──
+      const reportDirPhysicalRoot =
+        process.env.REPORT_DIR || path.join(process.cwd(), "reportes");
+      const hoyDate = new Date();
+      const yyyy = String(hoyDate.getFullYear());
+      const mm = String(hoyDate.getMonth() + 1).padStart(2, "0");
+      const monthNames = [
+        "Enero",
+        "Febrero",
+        "Marzo",
+        "Abril",
+        "Mayo",
+        "Junio",
+        "Julio",
+        "Agosto",
+        "Septiembre",
+        "Octubre",
+        "Noviembre",
+        "Diciembre",
+      ];
+      const monthName = monthNames[hoyDate.getMonth()];
+
+      const clientCarpeta = createConectionPG(session);
+      await clientCarpeta.connect();
+
+      let codcarpeta, folderPathPhysical, folderPathLogical;
+      try {
+        const root = await findOrCreateFolder(clientCarpeta, "reportes", 0, 1);
+        const factores = await findOrCreateFolder(
+          clientCarpeta,
+          "factores",
+          root.codigo,
+          2,
+        );
+        const ucpF = await findOrCreateFolder(
+          clientCarpeta,
+          ucp,
+          factores.codigo,
+          3,
+        );
+        const yearF = await findOrCreateFolder(
+          clientCarpeta,
+          yyyy,
+          ucpF.codigo,
+          4,
+        );
+        const monthF = await findOrCreateFolder(
+          clientCarpeta,
+          monthName,
+          yearF.codigo,
+          5,
+        );
+
+        codcarpeta = monthF.codigo;
+        folderPathLogical = `~/reportes/factores/${ucp}/${yyyy}/${monthName}`;
+        folderPathPhysical = path.join(
+          reportDirPhysicalRoot,
+          "factores",
+          ucp,
+          yyyy,
+          monthName,
+        );
+
+        if (!fs.existsSync(folderPathPhysical)) {
+          fs.mkdirSync(folderPathPhysical, { recursive: true });
+        }
+      } finally {
+        await clientCarpeta.end();
+      }
+
+      // ── Generar excel físico ──
+      await generateXlsxFactores({
+        sumasRef,
+        resultadosFdaFdp,
+        folderPhysical: folderPathPhysical,
+        nombrearchivo,
+        selectedSource: ucp,
+        fechaInicio: fecha_inicio,
+        fechaFin: fecha_fin,
+      });
+
+      const rutaBD = `${folderPathLogical}/${nombrearchivo}`;
+
+      const clientArch = createConectionPG(session);
+      await clientArch.connect();
+      let codarchivo = null;
+      try {
+        await clientArch.query("BEGIN");
+        const resArch = await insertFileRecord(clientArch, {
+          nombreArchivo: nombrearchivo,
+          rutaArchivo: rutaBD,
+          codcarpeta,
+          contentType: null,
+        });
+        codarchivo = resArch?.codigo ?? null;
+        await clientArch.query("COMMIT");
+      } catch (err) {
+        await clientArch.query("ROLLBACK");
+        Logger.error(colors.red("Error insertando archivo factores:"), err);
+      } finally {
+        await clientArch.end();
+      }
+
+      if (codarchivo) {
+        const clientLink = createConectionPG(session);
+        await model.agregarArchivoSesionFactores(
+          { codsesion, codarchivo, tipo: "xlsx" },
+          clientLink,
+        );
+      }
+
+      return {
+        success: true,
+        codsesion,
+        nombre,
+        version,
+        nombrearchivo,
+        folderPathPhysical,
+        message: `Sesión de factores guardada correctamente (v${version})`,
+      };
+    } catch (err) {
+      Logger.error(colors.red("Error guardarSesionReporteFactores"), err);
+      return {
+        success: false,
+        message: err.message || "Error al guardar sesión de factores",
       };
     }
   };

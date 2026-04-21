@@ -207,4 +207,34 @@ export default {
     flujo_tipo: Joi.string().valid("A", "R").required(),
     n_max: Joi.number().min(1).required(),
   }),
+
+  guardarSesionReporteFactores: Joi.object({
+    ucp: Joi.string().required(),
+    fecha_inicio: Joi.string().required(),
+    fecha_fin: Joi.string().required(),
+    usuario: Joi.string().required(),
+    observacion: Joi.string().allow("", null),
+    resultadosFdaFdp: Joi.array()
+      .items(
+        Joi.object({
+          tipoDia: Joi.string()
+            .valid("ORDINARIO", "SABADO", "FESTIVO")
+            .required(),
+          tipo: Joi.string().valid("FDA", "FDP").required(),
+          barra: Joi.string().required(),
+          periodos: Joi.object().required(),
+        }),
+      )
+      .required(),
+    sumasRef: Joi.array()
+      .items(
+        // ← reemplaza comboDataMap
+        Joi.object({
+          tipo_dia: Joi.string().required(),
+          tipo_energia: Joi.string().required(),
+          periodos: Joi.object().required(),
+        }),
+      )
+      .required(),
+  }),
 };
