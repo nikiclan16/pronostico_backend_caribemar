@@ -17,9 +17,9 @@ export const createConectionPG = (credentials) => {
       host: credentials.host,
       database: credentials.basededatos,
       port: +credentials.puerto || 5432,
-      max: 10, // Máximo de conexiones por mercado
+      max: 25,
       idleTimeoutMillis: 100000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 15000, // más tiempo para esperar conexión disponible
     });
 
     newPool.on("error", (err, client) => {

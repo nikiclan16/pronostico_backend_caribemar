@@ -198,4 +198,13 @@ export default {
     e_ar: Joi.string().required(),
     ucp: Joi.string().required(),
   }),
+  obtenerDatosCompletoBarra: Joi.object({
+    barras: Joi.array().items(Joi.string()).min(1).required(),
+    fecha_inicial: Joi.string().required(),
+    fecha_final: Joi.string().required(),
+    mc: Joi.string().required(),
+    tipo_dia: Joi.string().valid("ORDINARIO", "SABADO", "FESTIVO").required(),
+    flujo_tipo: Joi.string().valid("A", "R").required(),
+    n_max: Joi.number().min(1).required(),
+  }),
 };

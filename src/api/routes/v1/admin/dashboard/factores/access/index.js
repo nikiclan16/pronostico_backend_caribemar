@@ -649,3 +649,33 @@ export const buscarUltimaFechaMedida = async (req, res) => {
       .json({ success: false, message: "Internal server error" });
   }
 };
+
+export const obtenerDatosCompletoBarra = async (req, res) => {
+  const { session } = req.user;
+  const {
+    barras,
+    fecha_inicial,
+    fecha_final,
+    mc,
+    tipo_dia,
+    flujo_tipo,
+    n_max,
+  } = req.body;
+
+  try {
+    const result = await service.obtenerDatosCompletoBarra(
+      { barras, fecha_inicial, fecha_final, mc, tipo_dia, flujo_tipo, n_max },
+      session,
+    );
+    if (!result.success)
+      return res.status(500).json({ success: false, message: result.message });
+    return res
+      .status(200)
+      .json({ success: true, data: result.data, message: result.message });
+  } catch (err) {
+    Logger.error(colors.red("Error controller obtenerDatosCompletoBarra"), err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
+  }
+};

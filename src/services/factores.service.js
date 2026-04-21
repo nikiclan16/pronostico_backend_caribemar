@@ -715,4 +715,123 @@ export default class FactoresService {
       };
     }
   };
+
+  obtenerDatosCompletoBarra = async (params, session) => {
+    const {
+      barras, // array de strings con nombres de barras
+      fecha_inicial,
+      fecha_final,
+      mc,
+      tipo_dia,
+      flujo_tipo,
+      n_max,
+    } = params;
+
+    try {
+      const client = createConectionPG(session);
+
+      // ── 1. Todos los datos estáticos de todas las barras en paralelo ──
+      const infoBarras = await Promise.all(
+        barras.map(async (barra) => {
+          const [codigosRpmRows, flujosRows] = await Promise.all([
+            model.consultarBarraNombre(barra, client),
+            model.consultarBarraFlujoNombreInicial(barra, flujo_tipo, client),
+          ]);
+
+          const codigosRpm = codigosRpmRows?.map((r) => r.codigo_rpm) ?? [];
+          const flujos = flujosRows?.map((r) => r.flujo) ?? [];
+
+          const factoresRows =
+            codigosRpm.length > 0
+              ? await model.consultarBarraFactorNombre(
+                  barra,
+                  flujo_tipo,
+                  codigosRpm, // <-- directo, sin envolver en objeto
+                  client,
+                )
+              : [];
+
+          return { barra, codigosRpm, flujos, factoresRows };
+        }),
+      );
+
+      // ── Helper: ejecutar en lotes para no agotar el pool de conexiones ──
+      const procesarEnLotes = async (items, tamanoLote, fn) => {
+        const resultados = [];
+        for (let i = 0; i < items.length; i += tamanoLote) {
+          const lote = items.slice(i, i + tamanoLote);
+          const resultadosLote = await Promise.all(lote.map(fn));
+          resultados.push(...resultadosLote);
+        }
+        return resultados;
+      };
+
+      const medidasPorBarra = await procesarEnLotes(
+        infoBarras,
+        3,
+        async ({ barra, codigosRpm, flujos }) => {
+          if (!codigosRpm.length || !flujos.length) return null;
+
+          // ⚠️ Crear client NUEVO por cada llamada porque el model hace connect/end
+          const clientMedida = createConectionPG(session);
+          try {
+            const rows = await model.consultarMedidasCalcularCompleto(
+              {
+                fecha_inicial,
+                fecha_final,
+                mc,
+                flujo: flujos,
+                tipo_dia,
+                codigo_rpm: codigosRpm,
+                barra,
+              },
+              clientMedida,
+            );
+            // El model devuelve rows directamente (no { data: rows })
+            return { data: rows ?? [] };
+          } catch (err) {
+            Logger.error(`Error medidas barra ${barra}:`, err);
+            return { data: [] };
+          }
+        },
+      );
+
+      // ── 3. Curvas en lotes de 3 ──
+      const curvasPorBarra = await procesarEnLotes(barras, 3, async (barra) => {
+        const res = await this.calculosCurvasTipicas(
+          fecha_inicial,
+          fecha_final,
+          mc,
+          tipo_dia,
+          flujo_tipo,
+          n_max,
+          barra,
+          600000,
+          session,
+        );
+        return res;
+      });
+
+      // ── 3. Armar respuesta ──
+      const resultado = infoBarras.map((info, idx) => ({
+        barra: info.barra,
+        factoresRows: info.factoresRows ?? [],
+        medidas: medidasPorBarra[idx]?.data ?? [],
+        curvas: curvasPorBarra[idx]?.data?.data ?? [], // ← era .data.data.data, es .data.data
+      }));
+
+      return {
+        success: true,
+        data: resultado,
+        message: "Datos completos obtenidos correctamente",
+      };
+    } catch (err) {
+      Logger.error(colors.red("Error obtenerDatosCompletoBarra"), err);
+      return {
+        success: false,
+        data: null,
+        message: "Error al obtener datos completos",
+      };
+    }
+  };
 }
