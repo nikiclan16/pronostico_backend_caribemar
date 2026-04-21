@@ -156,5 +156,17 @@ export default function () {
 
   router.get("/buscarUltimaFechaMedida", controllers.buscarUltimaFechaMedida);
 
+  router.post(
+    "/obtenerDatosCompletoBarra",
+    validator(schema.obtenerDatosCompletoBarra),
+    controllers.obtenerDatosCompletoBarra,
+  );
+
+  router.post(
+    "/guardarSesionReporteFactores",
+    validator(schema.guardarSesionReporteFactores),
+    controllers.guardarSesionReporteFactores,
+  );
+
   return router;
 }

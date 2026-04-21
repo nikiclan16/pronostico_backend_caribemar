@@ -649,3 +649,74 @@ export const buscarUltimaFechaMedida = async (req, res) => {
       .json({ success: false, message: "Internal server error" });
   }
 };
+
+export const obtenerDatosCompletoBarra = async (req, res) => {
+  const { session } = req.user;
+  const {
+    barras,
+    fecha_inicial,
+    fecha_final,
+    mc,
+    tipo_dia,
+    flujo_tipo,
+    n_max,
+  } = req.body;
+
+  try {
+    const result = await service.obtenerDatosCompletoBarra(
+      { barras, fecha_inicial, fecha_final, mc, tipo_dia, flujo_tipo, n_max },
+      session,
+    );
+    if (!result.success)
+      return res.status(500).json({ success: false, message: result.message });
+    return res
+      .status(200)
+      .json({ success: true, data: result.data, message: result.message });
+  } catch (err) {
+    Logger.error(colors.red("Error controller obtenerDatosCompletoBarra"), err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const guardarSesionReporteFactores = async (req, res) => {
+  const { session } = req.user;
+  const {
+    ucp,
+    fecha_inicio,
+    fecha_fin,
+    usuario,
+    sumasRef,
+    resultadosFdaFdp,
+    observacion,
+  } = req.body;
+
+  try {
+    const result = await service.guardarSesionReporteFactores(
+      {
+        ucp,
+        fecha_inicio,
+        fecha_fin,
+        usuario,
+        resultadosFdaFdp,
+        sumasRef,
+        observacion,
+      },
+      session,
+    );
+    if (!result.success)
+      return res.status(500).json({ success: false, message: result.message });
+    return res
+      .status(200)
+      .json({ success: true, data: result, message: result.message });
+  } catch (err) {
+    Logger.error(
+      colors.red("Error controller guardarSesionReporteFactores"),
+      err,
+    );
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
+  }
+};
