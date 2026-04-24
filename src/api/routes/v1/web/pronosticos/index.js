@@ -10,5 +10,10 @@ export default function () {
     validator(schema.playPublic),
     Pronosticos.playPublic,
   );
+  router.post(
+    "/retrainModelPublic",
+    validator(schema.retrainModelPublic),
+    Pronosticos.retrainModelPublic,
+  );
   return router;
 }

@@ -7,10 +7,8 @@ import {
   responseError,
 } from "../../../../../../../helpers/api.response.js";
 import { resolveSessionByUcp } from "../../../../../../../helpers/resolveSessionByUcp.js";
-import RedisModel from "../../../../../../../models/redis.model.js";
 
 const service = PronosticosService.getInstance();
-const redisModel = RedisModel.getInstance();
 
 export const exportarBulk = async (req, res) => {
   const {
@@ -373,7 +371,14 @@ export const playPublic = async (req, res) => {
     modelo = false,
     data,
   } = req.body;
-  let session = req?.user?.session;
+
+  const session = {
+    basededatos: process.env.POSTGRES_DB,
+    usuario: process.env.POSTGRES_USER,
+    contrasenia: process.env.POSTGRES_PASSWORD,
+    host: process.env.POSTGRES_HOST,
+    puerto: process.env.POSTGRES_PORT || 5432,
+  };
 
   // Normalizar fechas: acepta YYYY-MM-DD (React) y DD-MM-YYYY (.NET)
   const parseFecha = (f) => {
@@ -396,27 +401,6 @@ export const playPublic = async (req, res) => {
   const fecha_fin = parseFecha(_fecha_fin);
 
   try {
-    console.log(fecha_inicio, fecha_fin);
-    if (!session) {
-      const keys = await redisModel.keys(`mercados*`);
-      const mercadosParsed = await Promise.all(
-        keys.map(async (key) => {
-          const val = await redisModel.get(key);
-          return JSON.parse(val);
-        }),
-      );
-      session = await resolveSessionByUcp(ucp, mercadosParsed);
-    }
-
-    if (!session) {
-      return responseError(
-        200,
-        `No se encontró cliente para el ucp ${ucp}`,
-        404,
-        res,
-      );
-    }
-    console.log("session:", session);
     const result = await service.play(
       ucp,
       fecha_inicio,
@@ -431,5 +415,55 @@ export const playPublic = async (req, res) => {
   } catch (err) {
     Logger.error(err);
     return InternalError(res);
+  }
+};
+
+export const retrainModelPublic = async (req, res) => {
+  const session = {
+    basededatos: process.env.POSTGRES_DB,
+    usuario: process.env.POSTGRES_USER,
+    contrasenia: process.env.POSTGRES_PASSWORD,
+    host: process.env.POSTGRES_HOST,
+    puerto: process.env.POSTGRES_PORT || 5432,
+  };
+  try {
+    // aceptar ucp por query o body (compatibilidad)
+    const ucp = req.query.ucp ?? req.body?.ucp;
+    const timeoutMsQuery = req.query.timeoutMs;
+    const timeoutMsBody = req.body?.timeoutMs;
+    const timeoutMs = timeoutMsQuery
+      ? Number(timeoutMsQuery)
+      : typeof timeoutMsBody !== "undefined"
+        ? Number(timeoutMsBody)
+        : undefined;
+
+    if (!ucp) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Parámetro 'ucp' es requerido" });
+    }
+
+    const result = await service.retrainModel(ucp, timeoutMs);
+
+    if (!result.success) {
+      return res.status(502).json({
+        success: false,
+        message: "No fue posible reentrenar el modelo. Ver logs del servidor.",
+        meta: { statusCode: result.statusCode ?? 0, host: result.host ?? null },
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Reentrenamiento ejecutado para ${ucp}`,
+      data: result.data,
+      host: result.host,
+    });
+  } catch (err) {
+    Logger.error(colors.red("Error predictController.retrainModel: "), err);
+    return res.status(500).json({
+      success: false,
+      message: "Error interno al solicitar reentrenamiento",
+    });
   }
 };

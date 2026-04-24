@@ -5,105 +5,12 @@ import { createConectionPG } from "../helpers/connections.js";
 
 import config from "../config/index.js";
 import UserModel from "../models/user.model.js";
-import RedisModel from "../models/redis.model.js";
+
 import { createToken } from "../helpers/index.js";
 
 class AuthService {
   constructor() {
     this.userModel = UserModel.getInstance();
-    this.redisModel = RedisModel.getInstance();
-  }
-
-  //Verificando login superadmin
-  loginS = async (usuario, password) => {
-    try {
-      //Key: usuario_perfil_estado_usuario
-      const resultKeys = await this.redisModel.keys(`usuarios_*_1_${usuario}`);
-
-      if (resultKeys.length == 0)
-        return {
-          success: false,
-          message: "Este usuario no se encuentra registrado en el sistema.",
-        };
-
-      const getInfoData = await this.redisModel.get(resultKeys[0]);
-      const data = JSON.parse(getInfoData);
-      if (data.contrasenia !== password)
-        return {
-          success: false,
-          message: "Intente nuevamente, las contraseñas no son válidas.",
-        };
-
-      delete data.contrasenia;
-      const token = signToken({ data, email: data.correo });
-      return {
-        success: true,
-        message: "Datos del usuario.",
-        user: { user: data, token },
-      };
-    } catch (error) {
-      Logger.error(colors.red("Error LoginService verifyLoginS "), error);
-      throw new Error("ERROR TECNICO");
-    }
-  };
-
-  async login(uuid, usuario, password) {
-    try {
-      // 1. Buscar el mercado en Redis por uuid
-      const resultKeys = await this.redisModel.keys(`mercados_${uuid}*`);
-      if (resultKeys.length === 0) {
-        throw new Error("Mercado no encontrado.");
-      }
-
-      const getInfoData = await this.redisModel.get(resultKeys[0]);
-      const raw = JSON.parse(getInfoData);
-      const mercado = typeof raw === "string" ? JSON.parse(raw) : raw;
-
-      // 2. Verificar que el mercado tiene accesos configurados
-      if (!mercado.accesos) {
-        throw new Error("Este mercado no tiene base de datos configurada.");
-      }
-
-      // 3. Crear conexión dinámica a la BD del mercado
-      const client = createConectionPG(mercado.accesos);
-
-      // 4. Verificar usuario/contraseña contra la BD del mercado
-      const result = await this.userModel.verificarUsuario(
-        usuario,
-        password,
-        client,
-      );
-      if (!result || result.rows.length === 0) {
-        throw new Error("Usuario o contraseña incorrectos");
-      }
-
-      const user = result.rows[0];
-
-      // 5. Validaciones de estado
-      if (user.bloqueo && user.bloqueo !== "0" && user.bloqueo !== null) {
-        throw new Error("Usuario bloqueado");
-      }
-      if (user.estado !== "On") {
-        throw new Error("Usuario inactivo");
-      }
-
-      // 6. Generar token incluyendo info del mercado
-      const token = this.generateToken(user, mercado);
-
-      const { pass, ...userWithoutPassword } = user;
-
-      return {
-        success: true,
-        token,
-        user: {
-          ...userWithoutPassword,
-          uuid_mercado: mercado.uuid,
-          nombre_mercado: mercado.nombre,
-        },
-      };
-    } catch (error) {
-      throw error;
-    }
   }
 
   generateToken(user, mercado) {
@@ -140,111 +47,6 @@ class AuthService {
       return decoded;
     } catch (error) {
       throw new Error("Token inválido o expirado");
-    }
-  }
-
-  async register(userData, session) {
-    try {
-      const {
-        usuario,
-        password,
-        identificacion,
-        pnombre,
-        snombre,
-        papellido,
-        sapellido,
-        telefono,
-        celular,
-        email,
-        codperfil,
-        uuid,
-      } = userData;
-
-      // 1. Buscar el mercado en Redis por uuid
-      const resultKeys = await this.redisModel.keys(`mercados_${uuid}*`);
-      if (resultKeys.length === 0) {
-        throw new Error("Mercado no encontrado.");
-      }
-
-      const getInfoData = await this.redisModel.get(resultKeys[0]);
-      const raw = JSON.parse(getInfoData);
-      const mercado = typeof raw === "string" ? JSON.parse(raw) : raw;
-
-      // 2. Verificar que el mercado tiene accesos configurados
-      if (!mercado.accesos) {
-        throw new Error("Este mercado no tiene base de datos configurada.");
-      }
-
-      const client = createConectionPG(session);
-
-      // Verificar si el usuario ya existe
-      const existingUserByUsername =
-        await this.userModel.buscarUsuarioxNickname(usuario, client);
-      if (existingUserByUsername && existingUserByUsername.rows.length > 0) {
-        throw new Error("El nombre de usuario ya está registrado");
-      }
-
-      // const client2 = createConectionPG(session);
-      // // Verificar si el email ya existe
-      // const existingUserByEmail = await this.userModel.buscarUsuarioxNickname(
-      //   email,
-      //   client2,
-      // );
-      // if (existingUserByEmail && existingUserByEmail.rows.length > 0) {
-      //   throw new Error("El email ya está registrado");
-      // }
-
-      // Verificar si la identificación ya existe
-      if (identificacion) {
-        const client3 = createConectionPG(session);
-        const existingUserByIdentificacion =
-          await this.userModel.buscarUsuarioxIdentificacion(
-            identificacion,
-            client3,
-          );
-        if (
-          existingUserByIdentificacion &&
-          existingUserByIdentificacion.rows.length > 0
-        ) {
-          throw new Error("La identificación ya está registrada");
-        }
-      }
-      const client4 = createConectionPG(session);
-      // Agregar usuario
-      const result = await this.userModel.agregarUsuarioPG(
-        usuario,
-        password,
-        identificacion || "",
-        pnombre || "",
-        snombre || "",
-        papellido || "",
-        sapellido || "",
-        telefono || "",
-        celular || "",
-        email,
-        codperfil || "1", // Perfil por defecto
-        client4,
-      );
-
-      if (!result || result.rows.length === 0) {
-        throw new Error("Error al crear el usuario");
-      }
-
-      const newUser = result.rows[0];
-
-      // Generar token JWT
-      const token = this.generateToken(newUser, mercado);
-
-      // Retornar usuario sin la contraseña
-      const { pass, ...userWithoutPassword } = newUser;
-
-      return {
-        success: true,
-        token,
-        user: userWithoutPassword,
-      };
-    } catch (error) {
-      throw error;
     }
   }
 
@@ -418,49 +220,6 @@ class AuthService {
       }
 
       return true;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async refreshToken(iduser, uuid) {
-    try {
-      // 1. Buscar el mercado en Redis por uuid
-      const resultKeys = await this.redisModel.keys(`mercados_${uuid}*`);
-      if (resultKeys.length === 0) {
-        throw new Error("Mercado no encontrado.");
-      }
-
-      const getInfoData = await this.redisModel.get(resultKeys[0]);
-      const raw = JSON.parse(getInfoData);
-      const mercado = typeof raw === "string" ? JSON.parse(raw) : raw;
-
-      // 2. Verificar que el mercado tiene accesos configurados
-      if (!mercado.accesos) {
-        throw new Error("Este mercado no tiene base de datos configurada.");
-      }
-
-      // 3. Crear conexión dinámica a la BD del mercado
-      const client = createConectionPG(mercado.accesos);
-
-      // Buscar usuario actualizado
-      const result = await this.userModel.buscarUsuario(iduser, client);
-
-      if (!result || result.rows.length === 0) {
-        throw new Error("Usuario no encontrado");
-      }
-
-      const user = result.rows[0];
-
-      // Verificar si el usuario sigue activo
-      if (user.estado !== "On") {
-        throw new Error("Usuario inactivo");
-      }
-
-      // Generar nuevo token
-      const newToken = this.generateToken(user, mercado);
-
-      return newToken;
     } catch (error) {
       throw error;
     }

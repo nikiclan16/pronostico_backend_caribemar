@@ -18,11 +18,11 @@ export default class SesionModel {
 
   createClient() {
     return new Client({
-      user: process.env.POSTGRES_USER_PROXY,
-      host: process.env.POSTGRES_HOS_PROXYT || "localhost",
-      database: process.env.POSTGRES_DB_PROXY,
-      password: process.env.POSTGRES_PASSWORD_PROXY,
-      port: process.env.POSTGRES_PORT_PROXY || 5432,
+      user: process.env.POSTGRES_USER,
+      host: process.env.POSTGRES_HOST || "localhost",
+      database: process.env.POSTGRES_DB,
+      password: process.env.POSTGRES_PASSWORD,
+      port: process.env.POSTGRES_PORT || 5432,
     });
   }
 
