@@ -9,4 +9,8 @@ export default {
     modelo: Joi.boolean().required(),
     data: Joi.array().items(Joi.object()).required(),
   }),
+  retrainModelPublic: Joi.object().keys({
+    ucp: Joi.string().trim().required(),
+    timeoutMs: Joi.number().integer().min(1000).optional().default(120000),
+  }),
 };

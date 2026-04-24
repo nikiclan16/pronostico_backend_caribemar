@@ -17,11 +17,11 @@ const createClientOrigen = () => {
 // ─── Cliente DESTINO (jano_proxy) ────────────────────────────────────────────
 const createClientDestino = () => {
   return new Client({
-    user: "usrjanoproxy",
+    user: "usrjanocaribemar",
     host: "localhost",
-    database: "jano_proxy",
-    password: "Julio2019proxy",
-    port: 5433,
+    database: "Janocaribemar",
+    password: "Julio2019caribemar",
+    port: 5432,
   });
 };
 
